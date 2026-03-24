@@ -385,7 +385,11 @@ nav{position:fixed;top:0;left:0;right:0;z-index:900;height:72px;background:rgba(
 @media(max-width:900px){.nav-links{display:none}.hamburger{display:flex}.hero-content{grid-template-columns:1fr}.hero-visual{display:none}.playout,.account-layout{grid-template-columns:1fr}.sidebar,.account-sidebar{position:static}.ctclayout,.dgrid{grid-template-columns:1fr}.vgrid,.nbar{grid-template-columns:1fr}.bgrid{grid-template-columns:1fr 1fr}.pgrd{grid-template-columns:1fr}.ahero{padding:48px 32px}.nitem{border-right:none;border-bottom:1px solid var(--line)}}
 @media(max-width:600px){.pgrid{grid-template-columns:repeat(2,1fr)}.cats-grid{grid-template-columns:repeat(2,1fr)}.bgrid{grid-template-columns:1fr}.fmain{grid-template-columns:1fr}.fbot{flex-direction:column;gap:6px;text-align:center}.fgrid,.agrid,.cgrid{grid-column:1/-1}.pinner{padding:36px 28px}.apanel{width:100vw}.fav-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:400px){.pgrid{grid-template-columns:1fr}}
-</style></head><body>
+</style>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head><body>
 <div id="g_id_onload" data-client_id="" data-callback="handleGoogleCredential" data-auto_prompt="false"></div>
 <nav><div class="nav-inner">
   <a class="logo" onclick="go('home')"><span class="logo-rb">RB</span>&nbsp;Suplementos</a>
@@ -850,18 +854,24 @@ var creds={u:sh('rbdono'),p:sh('R@nier12')};
 var clients={},orders=[],curClient=JSON.parse(localStorage.getItem('rb_curClient')||'null');
 var curProd=null,admLoggedIn=false,nextId=12,_db=null,_fbReady=false;
 
-// FIREBASE
+// FIREBASE - usando SDK compat (carregado via script tag no head)
 function getFbCfg(){try{var r=localStorage.getItem('rb_firebase_cfg');return r?JSON.parse(r):null;}catch(e){return null;}}
-async function initFirebase(){
-  var cfg=getFbCfg();if(!cfg){useFallback();return;}
+
+function initFirebase(){
+  var cfg=getFbCfg();
+  if(!cfg){useFallback();return;}
   try{
-    var fa=await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
-    var fs=await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
-    var app=fa.getApps().length?fa.getApps()[0]:fa.initializeApp(cfg);
-    _db=fs.getFirestore(app);_fbReady=true;window._fs={doc:fs.doc,getDoc:fs.getDoc,setDoc:fs.setDoc};
-    await loadFromFb();
-  }catch(e){console.warn('Firebase:',e);useFallback();}
+    if(!firebase.apps.length){firebase.initializeApp(cfg);}
+    _db=firebase.firestore();
+    _fbReady=true;
+    console.log('Firebase conectado!');
+    loadFromFb();
+  }catch(e){
+    console.warn('Firebase falhou:',e);
+    useFallback();
+  }
 }
+
 function useFallback(){
   prods=JSON.parse(localStorage.getItem('rb_prods')||'null')||DP.map(function(p){return Object.assign({},p);});
   contact=JSON.parse(localStorage.getItem('rb_contact')||'null')||Object.assign({},DC);
@@ -872,38 +882,85 @@ function useFallback(){
   nextId=Math.max.apply(null,prods.map(function(p){return p.id;}).concat([11]))+1;
   renderHome();renderCtcInfo();
 }
-async function loadFromFb(){
-  var fs=window._fs;
-  var snap=await fs.getDoc(fs.doc(_db,'store','config'));
-  if(snap.exists()){var d=snap.data();if(d.prods)prods=d.prods;if(d.contact)contact=d.contact;if(d.homeData)homeData=d.homeData;if(d.creds)creds=d.creds;}
-  else{await fbSaveCfg();}
-  var cs=await fs.getDoc(fs.doc(_db,'store','clients'));if(cs.exists())clients=cs.data().d||{};
-  var os=await fs.getDoc(fs.doc(_db,'store','orders'));if(os.exists())orders=os.data().d||[];
-  nextId=Math.max.apply(null,prods.map(function(p){return p.id;}).concat([11]))+1;
-  renderHome();renderCtcInfo();updateUserNav();
+
+function loadFromFb(){
+  _db.collection('store').doc('config').get().then(function(snap){
+    if(snap.exists){
+      var d=snap.data();
+      if(d.prods)prods=d.prods;
+      if(d.contact)contact=d.contact;
+      if(d.homeData)homeData=d.homeData;
+      if(d.creds)creds=d.creds;
+    }else{fbSaveCfg();}
+    return _db.collection('store').doc('clients').get();
+  }).then(function(cs){
+    if(cs&&cs.exists)clients=cs.data().d||{};
+    return _db.collection('store').doc('orders').get();
+  }).then(function(os){
+    if(os&&os.exists)orders=os.data().d||[];
+    nextId=Math.max.apply(null,prods.map(function(p){return p.id;}).concat([11]))+1;
+    renderHome();renderCtcInfo();updateUserNav();
+    console.log('Dados carregados do Firebase!');
+  }).catch(function(e){
+    console.warn('Erro ao carregar Firebase:',e);
+    useFallback();
+  });
 }
-async function fbSaveCfg(){
-  if(_fbReady){var fs=window._fs;await fs.setDoc(fs.doc(_db,'store','config'),{prods:prods,contact:contact,homeData:homeData,creds:creds});}
-  else{localStorage.setItem('rb_prods',JSON.stringify(prods));localStorage.setItem('rb_contact',JSON.stringify(contact));localStorage.setItem('rb_home',JSON.stringify(homeData));localStorage.setItem('rb_creds',JSON.stringify(creds));}
+
+function fbSaveCfg(){
+  if(_fbReady){
+    _db.collection('store').doc('config').set({prods:prods,contact:contact,homeData:homeData,creds:creds}).catch(function(e){console.warn('Erro ao salvar config:',e);});
+  }else{
+    localStorage.setItem('rb_prods',JSON.stringify(prods));
+    localStorage.setItem('rb_contact',JSON.stringify(contact));
+    localStorage.setItem('rb_home',JSON.stringify(homeData));
+    localStorage.setItem('rb_creds',JSON.stringify(creds));
+  }
 }
-async function fbSaveClients(){if(_fbReady){var fs=window._fs;await fs.setDoc(fs.doc(_db,'store','clients'),{d:clients});}else localStorage.setItem('rb_clients',JSON.stringify(clients));}
-async function fbSaveOrders(){if(_fbReady){var fs=window._fs;await fs.setDoc(fs.doc(_db,'store','orders'),{d:orders});}else localStorage.setItem('rb_orders',JSON.stringify(orders));}
-async function saveFbCfg(){
+
+function fbSaveClients(){
+  if(_fbReady){_db.collection('store').doc('clients').set({d:clients}).catch(function(e){console.warn(e);});}
+  else localStorage.setItem('rb_clients',JSON.stringify(clients));
+}
+
+function fbSaveOrders(){
+  if(_fbReady){_db.collection('store').doc('orders').set({d:orders}).catch(function(e){console.warn(e);});}
+  else localStorage.setItem('rb_orders',JSON.stringify(orders));
+}
+
+function saveFbCfg(){
   var cfg={apiKey:v('fbApiKey'),authDomain:v('fbAuthDomain'),projectId:v('fbProjectId'),appId:v('fbAppId')};
   if(!cfg.apiKey||!cfg.projectId){toast('Aviso','Preencha API Key e Project ID.');return;}
-  localStorage.setItem('rb_firebase_cfg',JSON.stringify(cfg));fbSt('Conectando...','fb-load');
-  await initFirebase();
-  if(_fbReady){fbSt('Conectado!','fb-ok');fbSaveCfg();fbSaveClients();fbSaveOrders();toast('Firebase!','Conectado!');}
-  else fbSt('Falha. Verifique as credenciais.','fb-err');
-}
-async function testFb(){
-  var cfg=getFbCfg();if(!cfg){toast('Aviso','Salve as credenciais primeiro.');return;}fbSt('Testando...','fb-load');
+  localStorage.setItem('rb_firebase_cfg',JSON.stringify(cfg));
+  fbSt('Conectando...','fb-load');
+  // Re-initialize with new config
   try{
-    var fa=await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
-    var fs=await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
-    var app=fa.getApps().length?fa.getApps()[0]:fa.initializeApp(cfg);
-    await fs.getDoc(fs.doc(fs.getFirestore(app),'store','config'));
-    fbSt('Conexao OK!','fb-ok');toast('OK','Firebase funcionando!');
+    if(firebase.apps.length){firebase.app().delete().then(function(){doInitFb(cfg);});}
+    else{doInitFb(cfg);}
+  }catch(e){doInitFb(cfg);}
+}
+
+function doInitFb(cfg){
+  try{
+    firebase.initializeApp(cfg);
+    _db=firebase.firestore();_fbReady=true;
+    fbSt('Conectado!','fb-ok');
+    fbSaveCfg();fbSaveClients();fbSaveOrders();
+    toast('Firebase!','Conectado! Dados sincronizando.');
+  }catch(e){
+    fbSt('Falha: '+e.message,'fb-err');
+    toast('Aviso','Erro ao conectar. Verifique as credenciais.');
+  }
+}
+
+function testFb(){
+  var cfg=getFbCfg();if(!cfg){toast('Aviso','Salve as credenciais primeiro.');return;}
+  fbSt('Testando...','fb-load');
+  try{
+    var testApp=firebase.apps.length?firebase.app():firebase.initializeApp(cfg);
+    firebase.firestore(testApp).collection('store').doc('config').get()
+      .then(function(){fbSt('Conexao OK!','fb-ok');toast('OK','Firebase funcionando!');})
+      .catch(function(e){fbSt('Falha: '+e.message,'fb-err');});
   }catch(e){fbSt('Falha: '+e.message,'fb-err');}
 }
 function fbSt(msg,cls){var el=document.getElementById('fbStatus');if(el){el.textContent=msg;el.className=cls;}}
