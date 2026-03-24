@@ -855,7 +855,15 @@ var clients={},orders=[],curClient=JSON.parse(localStorage.getItem('rb_curClient
 var curProd=null,admLoggedIn=false,nextId=12,_db=null,_fbReady=false;
 
 // FIREBASE - usando SDK compat (carregado via script tag no head)
-function getFbCfg(){try{var r=localStorage.getItem('rb_firebase_cfg');return r?JSON.parse(r):null;}catch(e){return null;}}
+function getFbCfg(){
+  // Credenciais Firebase fixas no codigo
+  return {
+    apiKey: "AIzaSyCPa1BdbZuLVbiW_6WT4fuJEQmxtFXNDr",
+    authDomain: "rb-suplementos-455ce.firebaseapp.com",
+    projectId: "rb-suplementos-455ce",
+    appId: "1:740268835716:web:c6495c4d24fa819ad0d3d1"
+  };
+}
 
 function initFirebase(){
   var cfg=getFbCfg();
