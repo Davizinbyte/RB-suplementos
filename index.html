@@ -1413,27 +1413,42 @@ window.addEventListener('load', function() {
   loadPublicData();
 });
 function go(page) {
+  console.log('Navegando para:', page);
+  
+  // Esconde todas as páginas
   var pages = ['home', 'produtos', 'produto', 'sobre', 'contato', 'account'];
   pages.forEach(function(p) {
-    var el = document.getElementById(p + 'Page');
+    var el = document.getElementById('page-' + p);  // ← CORRIGIDO: page-home ao invés de homePage
     if (el) el.classList.remove('active');
   });
-  var target = document.getElementById(page + 'Page');
+  
+  // Mostra a página solicitada
+  var target = document.getElementById('page-' + page);  // ← CORRIGIDO
   if (target) {
     target.classList.add('active');
     window.scrollTo(0, 0);
+  } else {
+    console.error('Página não encontrada: page-' + page);
   }
+  
+  // Atualiza menu de navegação (marca item ativo)
   document.querySelectorAll('[id^="nl-"]').forEach(function(link) {
     link.classList.remove('on');
   });
   var activeLink = document.getElementById('nl-' + page);
   if (activeLink) activeLink.classList.add('on');
   
+  // Carrega conteúdo específico de cada página
   if (page === 'home') renderHome();
   if (page === 'produtos') renderProdsPage(prods);
   if (page === 'contato') renderCtcInfo();
   if (page === 'account' && curClient) accPanel('pedidos');
+  
+  // Fecha menu mobile se estiver aberto
+  var mobMenu = document.getElementById('mobMenu');
+  if (mobMenu) mobMenu.classList.remove('open');
 }
+
 
 </script>
 </body></html>
