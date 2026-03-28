@@ -386,9 +386,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:900;height:72px;background:rgba(
 @media(max-width:600px){.pgrid{grid-template-columns:repeat(2,1fr)}.cats-grid{grid-template-columns:repeat(2,1fr)}.bgrid{grid-template-columns:1fr}.fmain{grid-template-columns:1fr}.fbot{flex-direction:column;gap:6px;text-align:center}.fgrid,.agrid,.cgrid{grid-column:1/-1}.pinner{padding:36px 28px}.apanel{width:100vw}.fav-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:400px){.pgrid{grid-template-columns:1fr}}
 </style>
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 </head><body>
 <div id="g_id_onload" data-client_id="700551558544-cj8iea6octmt263an5nlos1oq0pp1gi4.apps.googleusercontent.com" data-callback="handleGoogleCredential" data-auto_prompt="false"></div>
 <nav><div class="nav-inner">
@@ -855,154 +852,29 @@ var clients={},orders=[],curClient=JSON.parse(localStorage.getItem('rb_curClient
 var curProd=null,admLoggedIn=false,nextId=12,_db=null,_fbReady=false;
 
 // FIREBASE - usando SDK compat (carregado via script tag no head)
-function getFbCfg(){
-  // Credenciais Firebase fixas no codigo
-  return {
-    apiKey: "AIzaSyCPa1BdbZuLVbiW_6WT4fuJEQmxtFXNDr",
-    authDomain: "rb-suplementos-455ce.firebaseapp.com",
-    projectId: "rb-suplementos-455ce",
-    appId: "1:740268835716:web:c6495c4d24fa819ad0d3d1"
-  };
-}
 
-function initFirebase(){
-  var cfg=getFbCfg();
-  if(!cfg){useFallback();return;}
-  try{
-    if(!firebase.apps.length){firebase.initializeApp(cfg);}
-    _db=firebase.firestore();
-    _fbReady=true;
-    console.log('Firebase conectado!');
-    loadFromFb();
-  }catch(e){
-    console.warn('Firebase falhou:',e);
-    useFallback();
-  }
-}
 
-function useFallback(){
-  prods=JSON.parse(localStorage.getItem('rb_prods')||'null')||DP.map(function(p){return Object.assign({},p);});
-  contact=JSON.parse(localStorage.getItem('rb_contact')||'null')||Object.assign({},DC);
-  homeData=JSON.parse(localStorage.getItem('rb_home')||'null')||Object.assign({},DH);
-  creds=JSON.parse(localStorage.getItem('rb_creds')||'null')||{u:sh('rbdono'),p:sh('R@nier12')};
-  clients=JSON.parse(localStorage.getItem('rb_clients')||'{}');
-  orders=JSON.parse(localStorage.getItem('rb_orders')||'[]');
-  nextId=Math.max.apply(null,prods.map(function(p){return p.id;}).concat([11]))+1;
-  renderHome();renderCtcInfo();
-}
 
-function loadFromFb(){
-  _db.collection('store').doc('config').get().then(function(snap){
-    if(snap.exists){
-      var d=snap.data();
-      if(d.prods)prods=deserializeProds(d.prods);
-      if(d.contact)contact=d.contact;
-      if(d.homeData)homeData=d.homeData;
-      if(d.creds)creds=d.creds;
-    }else{fbSaveCfg();}
-    return _db.collection('store').doc('clients').get();
-  }).then(function(cs){
-    if(cs&&cs.exists)clients=cs.data().d||{};
-    return _db.collection('store').doc('orders').get();
-  }).then(function(os){
-    if(os&&os.exists)orders=os.data().d||[];
-    nextId=Math.max.apply(null,prods.map(function(p){return p.id;}).concat([11]))+1;
-    renderHome();renderCtcInfo();updateUserNav();
-    console.log('Dados carregados do Firebase!');
-  }).catch(function(e){
-    console.warn('Erro ao carregar Firebase:',e);
-    useFallback();
-  });
-}
 
-function serializeProds(arr){
-  return arr.map(function(p){
-    var cp=Object.assign({},p);
-    // Convert nested arrays to JSON strings for Firestore
-    if(cp.nutri)cp.nutri=JSON.stringify(cp.nutri);
-    if(cp.benefits)cp.benefits=JSON.stringify(cp.benefits);
-    return cp;
-  });
-}
-function deserializeProds(arr){
-  return arr.map(function(p){
-    var cp=Object.assign({},p);
-    if(typeof cp.nutri==='string'){try{cp.nutri=JSON.parse(cp.nutri);}catch(e){cp.nutri=[];}}
-    if(typeof cp.benefits==='string'){try{cp.benefits=JSON.parse(cp.benefits);}catch(e){cp.benefits=[];}}
-    return cp;
-  });
-}
-function fbSaveCfg(){
-  if(_fbReady){
-    var payload={prods:serializeProds(prods),contact:contact,homeData:homeData,creds:creds};
-    _db.collection('store').doc('config').set(payload).catch(function(e){console.warn('Erro ao salvar config:',e);});
-  }else{
-    localStorage.setItem('rb_prods',JSON.stringify(prods));
-    localStorage.setItem('rb_contact',JSON.stringify(contact));
-    localStorage.setItem('rb_home',JSON.stringify(homeData));
-    localStorage.setItem('rb_creds',JSON.stringify(creds));
-  }
-}
 
-function fbSaveClients(){
-  if(_fbReady){_db.collection('store').doc('clients').set({d:clients}).catch(function(e){console.warn(e);});}
-  else localStorage.setItem('rb_clients',JSON.stringify(clients));
-}
 
-function fbSaveOrders(){
-  if(_fbReady){_db.collection('store').doc('orders').set({d:orders}).catch(function(e){console.warn(e);});}
-  else localStorage.setItem('rb_orders',JSON.stringify(orders));
-}
 
-function saveFbCfg(){
-  var cfg={apiKey:v('fbApiKey'),authDomain:v('fbAuthDomain'),projectId:v('fbProjectId'),appId:v('fbAppId')};
-  if(!cfg.apiKey||!cfg.projectId){toast('Aviso','Preencha API Key e Project ID.');return;}
-  localStorage.setItem('rb_firebase_cfg',JSON.stringify(cfg));
-  fbSt('Conectando...','fb-load');
-  // Re-initialize with new config
-  try{
-    if(firebase.apps.length){firebase.app().delete().then(function(){doInitFb(cfg);});}
-    else{doInitFb(cfg);}
-  }catch(e){doInitFb(cfg);}
-}
 
-function doInitFb(cfg){
-  try{
-    firebase.initializeApp(cfg);
-    _db=firebase.firestore();_fbReady=true;
-    fbSt('Conectado!','fb-ok');
-    fbSaveCfg();fbSaveClients();fbSaveOrders();
-    toast('Firebase!','Conectado! Dados sincronizando.');
-  }catch(e){
-    fbSt('Falha: '+e.message,'fb-err');
-    toast('Aviso','Erro ao conectar. Verifique as credenciais.');
-  }
-}
 
-function testFb(){
-  var cfg=getFbCfg();if(!cfg){toast('Aviso','Salve as credenciais primeiro.');return;}
-  fbSt('Testando...','fb-load');
-  try{
-    var testApp=firebase.apps.length?firebase.app():firebase.initializeApp(cfg);
-    firebase.firestore(testApp).collection('store').doc('config').get()
-      .then(function(){fbSt('Conexao OK!','fb-ok');toast('OK','Firebase funcionando!');})
-      .catch(function(e){fbSt('Falha: '+e.message,'fb-err');});
-  }catch(e){fbSt('Falha: '+e.message,'fb-err');}
-}
+
+
+
+
+
+
+
+
+
+
+
+
 function fbSt(msg,cls){var el=document.getElementById('fbStatus');if(el){el.textContent=msg;el.className=cls;}}
-function loadFbForm(){var cfg=getFbCfg();if(!cfg)return;sv('fbApiKey',cfg.apiKey);sv('fbAuthDomain',cfg.authDomain);sv('fbProjectId',cfg.projectId);sv('fbAppId',cfg.appId);if(_fbReady)fbSt('Firebase conectado','fb-ok');}
-function saveGoogleId(){var id=v('googleClientId');localStorage.setItem('rb_google_client_id',id);toast('OK',id?'Google Client ID salvo!':'Google login desativado.');}
 
-// NAV
-function go(page){
-  document.querySelectorAll('.page').forEach(function(el){el.classList.remove('active');});
-  document.getElementById('page-'+page).classList.add('active');
-  document.querySelectorAll('.nav-links a').forEach(function(a){a.classList.remove('on');});
-  var nl=document.getElementById('nl-'+page);if(nl)nl.classList.add('on');
-  window.scrollTo({top:0,behavior:'smooth'});
-  var map={home:renderHome,produtos:function(){renderProdsPage(prods);},sobre:function(){document.getElementById('aboutProdCount').textContent=prods.length;},contato:renderCtcInfo,account:function(){if(!curClient){openCauth('login');return;}accPanel('pedidos');}};
-  if(map[page])map[page]();
-}
 function toggleMob(){document.getElementById('mobMenu').classList.toggle('open');}
 
 // IMAGES
@@ -1169,16 +1041,7 @@ function toast(title,msg){document.getElementById('toastTitle').textContent=titl
 function handleAdmBtn(){if(admLoggedIn)openAdmin();else openAdmLogin();}
 function openAdmLogin(){sv('lUser','');sv('lPass','');document.getElementById('lErr').classList.remove('show');document.getElementById('loverlay').classList.add('open');setTimeout(function(){document.getElementById('lUser').focus();},100);}
 function closeAdmLogin(){document.getElementById('loverlay').classList.remove('open');}
-function doAdmLogin(){
-  var u=v('lUser'),p=v('lPass');var err=document.getElementById('lErr');err.classList.remove('show');
-  if(!u||!p){err.textContent='Preencha usuario e senha.';err.classList.add('show');return;}
-  if(sh(u)===creds.u&&sh(p)===creds.p){
-    admLoggedIn=true;closeAdmLogin();document.getElementById('adminBarUser').textContent=u;
-    document.getElementById('adminBar').classList.add('show');document.body.style.paddingBottom='48px';
-    var btn=document.getElementById('navAdmBtn');if(btn){btn.textContent='Painel';btn.style.borderColor='var(--acc)';btn.style.color='var(--acc)';}
-    openAdmin();
-  }else{err.textContent='Usuario ou senha incorretos.';err.classList.add('show');sv('lPass','');}
-}
+
 function doAdmLogout(){admLoggedIn=false;closeAdmin();document.getElementById('adminBar').classList.remove('show');document.body.style.paddingBottom='';var btn=document.getElementById('navAdmBtn');if(btn){btn.textContent='Admin';btn.style.borderColor='';btn.style.color='';}toast('Saiu','Ate logo!');}
 function toggleEye(id,btn){var i=document.getElementById(id);if(i.type==='password'){i.type='text';btn.textContent='\uD83D\uDE48';}else{i.type='password';btn.textContent='\uD83D\uDC41';}}
 
@@ -1276,16 +1139,7 @@ function renderAdmOrders(){
     foot.appendChild(total);foot.appendChild(sel);d.appendChild(foot);el.appendChild(d);
   });
 }
-function updOrderStatus(id,status){var o=orders.find(function(x){return x.id===id;});if(!o)return;o.status=status;fbSaveOrders();toast('Atualizado','Status atualizado!');}
-function saveAdmCreds(){
-  var cu=v('sCurU'),cp=v('sCurP'),nu=v('sNewU'),np=v('sNewP'),nc=v('sConfP');
-  if(!cu||!cp){toast('Aviso','Preencha as credenciais atuais.');return;}
-  if(sh(cu)!==creds.u||sh(cp)!==creds.p){toast('Aviso','Credenciais incorretas.');return;}
-  if(!nu){toast('Aviso','Digite o novo usuario.');return;}
-  if(np.length<6){toast('Aviso','Senha minimo 6 caracteres.');return;}
-  if(np!==nc){toast('Aviso','Senhas nao coincidem.');return;}
-  creds={u:sh(nu),p:sh(np)};fbSaveCfg();['sCurU','sCurP','sNewU','sNewP','sConfP'].forEach(function(id){sv(id,'');});toast('Salvo','Credenciais atualizadas!');
-}
+
 
 // CLIENT AUTH
 function handleUserBtn(){if(curClient)go('account');else openCauth('login');}
@@ -1303,41 +1157,15 @@ function cauthTab(tab){
   document.getElementById('cauthReg').classList.toggle('hidden',tab!=='register');
   ['loginErr','regErr','regOk'].forEach(function(id){var el=document.getElementById(id);if(el)el.classList.remove('show');});
 }
-function doRegister(){
-  var name=v('cRegName'),email=v('cRegEmail').toLowerCase(),pass=v('cRegPass'),conf=v('cRegConf');
-  var err=document.getElementById('regErr');var ok=document.getElementById('regOk');
-  err.classList.remove('show');ok.classList.remove('show');
-  if(!name||!email||!pass){err.textContent='Preencha todos os campos.';err.classList.add('show');return;}
-  if(pass.length<6){err.textContent='Senha minimo 6 caracteres.';err.classList.add('show');return;}
-  if(pass!==conf){err.textContent='As senhas nao coincidem.';err.classList.add('show');return;}
-  if(clients[email]){err.textContent='E-mail ja cadastrado.';err.classList.add('show');return;}
-  clients[email]={name:name,passHash:sh(pass),tel:'',addresses:[],favorites:[],orders:[]};
-  fbSaveClients();ok.classList.add('show');['cRegName','cRegEmail','cRegPass','cRegConf'].forEach(function(id){sv(id,'');});
-  setTimeout(function(){cauthTab('login');sv('cLoginEmail',email);},1500);
-}
-function doLogin(){
-  var email=v('cLoginEmail').toLowerCase(),pass=v('cLoginPass');
-  var err=document.getElementById('loginErr');err.classList.remove('show');
-  if(!email||!pass){err.textContent='Preencha e-mail e senha.';err.classList.add('show');return;}
-  var c=clients[email];
-  if(!c||c.passHash!==sh(pass)){err.textContent='E-mail ou senha incorretos.';err.classList.add('show');sv('cLoginPass','');return;}
-  loginClient(email,c);
-}
+
+
 function loginClient(email,c){
   curClient=Object.assign({email:email},c);
   localStorage.setItem('rb_curClient',JSON.stringify(curClient));
   closeCauth();updateUserNav();toast('Bem-vindo!','Ola, '+c.name.split(' ')[0]);go('account');
 }
 function clientLogout(){curClient=null;localStorage.removeItem('rb_curClient');updateUserNav();go('home');toast('Ate logo!','Voltaremos a nos ver!');}
-function handleGoogleCredential(response){
-  try{
-    var payload=JSON.parse(atob(response.credential.split('.')[1]));
-    var email=payload.email;var name=payload.name||email.split('@')[0];
-    if(!clients[email])clients[email]={name:name,passHash:'',tel:'',addresses:[],favorites:[],orders:[],googleAuth:true};
-    else clients[email].googleAuth=true;
-    fbSaveClients();loginClient(email,clients[email]);toast('Google Login!','Bem-vindo, '+name.split(' ')[0]);
-  }catch(ex){toast('Aviso','Falha no login com Google.');}
-}
+
 function triggerGoogle(){
   var cid='700551558544-cj8iea6octmt263an5nlos1oq0pp1gi4.apps.googleusercontent.com';
   if(typeof google!=='undefined'&&google.accounts){
@@ -1440,23 +1268,149 @@ function fmt(n){return n.toFixed(2).replace('.',',');}
 function v(id){var el=document.getElementById(id);return el?(el.value||'').trim():'';}
 function sv(id,val){var el=document.getElementById(id);if(el)el.value=val||'';}
 
+// ── BACKEND API ──────────────────────────────────────────────────────────────
+var API = '';  // mesmo dominio
+var _adminToken = '';
+var _clientToken = '';
+var _clientEmail = '';
+
+function apiGet(path) {
+  var headers = {'Content-Type':'application/json'};
+  if (_adminToken) headers['x-admin-token'] = _adminToken;
+  if (_clientToken) headers['x-client-token'] = _clientToken;
+  return fetch(API + path, {headers: headers}).then(function(r){return r.json();});
+}
+
+function apiPost(path, body, useAdmin) {
+  var headers = {'Content-Type':'application/json'};
+  if (useAdmin && _adminToken) headers['x-admin-token'] = _adminToken;
+  if (!useAdmin && _clientToken) headers['x-client-token'] = _clientToken;
+  return fetch(API + path, {method:'POST', headers:headers, body:JSON.stringify(body)}).then(function(r){return r.json();});
+}
+
+function loadPublicData() {
+  apiGet('/api/data').then(function(d) {
+    if (d.error) { useFallback(); return; }
+    if (d.prods && d.prods.length) prods = deserializeProds(d.prods);
+    if (d.contact) contact = d.contact;
+    if (d.homeData) homeData = d.homeData;
+    nextId = Math.max.apply(null, prods.map(function(p){return p.id;}).concat([11])) + 1;
+    renderHome(); renderCtcInfo(); updateUserNav();
+  }).catch(function() { useFallback(); });
+}
+
+function useFallback() {
+  console.warn('API indisponivel, usando dados padrao');
+  renderHome(); renderCtcInfo();
+}
+
+function serializeProds(arr) {
+  return arr.map(function(p) {
+    var cp = Object.assign({}, p);
+    if (cp.nutri) cp.nutri = JSON.stringify(cp.nutri);
+    if (cp.benefits) cp.benefits = JSON.stringify(cp.benefits);
+    return cp;
+  });
+}
+function deserializeProds(arr) {
+  return arr.map(function(p) {
+    var cp = Object.assign({}, p);
+    if (typeof cp.nutri === 'string'){try{cp.nutri=JSON.parse(cp.nutri);}catch(e){cp.nutri=[];}}
+    if (typeof cp.benefits === 'string'){try{cp.benefits=JSON.parse(cp.benefits);}catch(e){cp.benefits=[];}}
+    return cp;
+  });
+}
+
+function fbSaveCfg() {
+  if (!_adminToken) return;
+  apiPost('/api/save', {prods:serializeProds(prods), contact:contact, homeData:homeData}, true)
+    .catch(function(e){ console.warn('Erro ao salvar:', e); });
+}
+function fbSaveClients() {} // clientes salvos por rota propria
+function fbSaveOrders() {}  // pedidos salvos por rota propria
+
+// Admin login via API (sem expor senha no codigo)
+function doAdmLogin() {
+  var u = v('lUser'), p = v('lPass');
+  var err = document.getElementById('lErr'); err.classList.remove('show');
+  if (!u || !p) { err.textContent = 'Preencha usuario e senha.'; err.classList.add('show'); return; }
+  apiPost('/api/login', {user: u, pass: p}, false).then(function(d) {
+    if (d.error || !d.ok) {
+      err.textContent = 'Usuario ou senha incorretos.'; err.classList.add('show'); sv('lPass',''); return;
+    }
+    _adminToken = d.token;
+    admLoggedIn = true; closeAdmLogin();
+    document.getElementById('adminBarUser').textContent = u;
+    document.getElementById('adminBar').classList.add('show');
+    document.body.style.paddingBottom = '48px';
+    var btn = document.getElementById('navAdmBtn');
+    if (btn) { btn.textContent = 'Painel'; btn.style.borderColor = 'var(--acc)'; btn.style.color = 'var(--acc)'; }
+    openAdmin();
+  }).catch(function() { err.textContent = 'Erro de conexao.'; err.classList.add('show'); });
+}
+
+// Cliente login/register via API
+function doRegister() {
+  var name=v('cRegName'), email=v('cRegEmail').toLowerCase(), pass=v('cRegPass'), conf=v('cRegConf');
+  var err=document.getElementById('regErr'); var ok=document.getElementById('regOk');
+  err.classList.remove('show'); ok.classList.remove('show');
+  if (!name||!email||!pass){err.textContent='Preencha todos os campos.';err.classList.add('show');return;}
+  if (pass.length<6){err.textContent='Senha minimo 6 caracteres.';err.classList.add('show');return;}
+  if (pass!==conf){err.textContent='As senhas nao coincidem.';err.classList.add('show');return;}
+  apiPost('/api/clients', {action:'register', email:email, pass:pass, name:name}).then(function(d) {
+    if (d.error) { err.textContent = d.error; err.classList.add('show'); return; }
+    ok.classList.add('show');
+    ['cRegName','cRegEmail','cRegPass','cRegConf'].forEach(function(id){sv(id,'');});
+    setTimeout(function(){cauthTab('login'); sv('cLoginEmail', email);}, 1500);
+  }).catch(function(){err.textContent='Erro de conexao.';err.classList.add('show');});
+}
+
+function doLogin() {
+  var email=v('cLoginEmail').toLowerCase(), pass=v('cLoginPass');
+  var err=document.getElementById('loginErr'); err.classList.remove('show');
+  if (!email||!pass){err.textContent='Preencha e-mail e senha.';err.classList.add('show');return;}
+  apiPost('/api/clients', {action:'login', email:email, pass:pass}).then(function(d) {
+    if (d.error || !d.ok) { err.textContent = d.error||'Email ou senha incorretos.'; err.classList.add('show'); sv('cLoginPass',''); return; }
+    _clientToken = d.token;
+    _clientEmail = email;
+    curClient = Object.assign({email:email}, d);
+    delete curClient.token;
+    localStorage.setItem('rb_curClient', JSON.stringify({email:email, token:d.token, name:d.name}));
+    closeCauth(); updateUserNav(); toast('Bem-vindo!', 'Ola, '+d.name.split(' ')[0]); go('account');
+  }).catch(function(){err.textContent='Erro de conexao.';err.classList.add('show');});
+}
+
+function handleGoogleCredential(response) {
+  try {
+    var payload = JSON.parse(atob(response.credential.split('.')[1]));
+    var email = payload.email; var name = payload.name || email.split('@')[0];
+    // Register or login via API
+    apiPost('/api/clients', {action:'register', email:email, pass:payload.sub, name:name})
+      .then(function() { return apiPost('/api/clients', {action:'login', email:email, pass:payload.sub}); })
+      .catch(function() { return apiPost('/api/clients', {action:'login', email:email, pass:payload.sub}); })
+      .then(function(d) {
+        if (!d.ok) { toast('Aviso','Falha no login com Google.'); return; }
+        _clientToken = d.token; _clientEmail = email;
+        curClient = {email:email, name:name, token:d.token};
+        localStorage.setItem('rb_curClient', JSON.stringify(curClient));
+        closeCauth(); updateUserNav(); toast('Google Login!','Bem-vindo, '+name.split(' ')[0]); go('account');
+      });
+  } catch(ex) { toast('Aviso','Falha no login com Google.'); }
+}
+
+function updOrderStatus(id, status) {
+  apiPost('/api/orders', {id:id, status:status}, true)
+    .then(function(){toast('Atualizado','Status atualizado!');})
+    .catch(function(){toast('Aviso','Erro ao atualizar.');});
+}
+
 // INIT
-updateUserNav();
-// Wait for Firebase SDK to load before initializing
 window.addEventListener('load', function() {
-  if(typeof firebase !== 'undefined') {
-    initFirebase();
-  } else {
-    // Retry after short delay if SDK not ready yet
-    setTimeout(function() {
-      if(typeof firebase !== 'undefined') {
-        initFirebase();
-      } else {
-        console.warn('Firebase SDK nao carregou, usando localStorage');
-        useFallback();
-      }
-    }, 1000);
-  }
+  // Restaura sessao do cliente se existir
+  var saved = JSON.parse(localStorage.getItem('rb_curClient')||'null');
+  if (saved && saved.token) { _clientToken = saved.token; _clientEmail = saved.email; curClient = saved; }
+  updateUserNav();
+  loadPublicData();
 });
 </script>
 </body></html>
