@@ -1,3 +1,21 @@
+let requests = {};
+
+export default function handler(req, res) {
+  const ip = req.headers['x-forwarded-for'] || 'unknown';
+
+  if (!requests[ip]) requests[ip] = 0;
+  requests[ip]++;
+
+  if (requests[ip] > 20) {
+    return res.status(429).json({ error: "Muitas requisições" });
+  }
+
+  setTimeout(() => {
+    requests[ip]--;
+  }, 60000);
+
+  // resto...
+}
 // api/clients.js - GET/POST /api/clients
 const { getDb, cors } = require('./config');
 const crypto = require('crypto');
